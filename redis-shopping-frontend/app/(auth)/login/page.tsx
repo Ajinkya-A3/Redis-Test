@@ -2,13 +2,32 @@ import { redirect } from 'next/navigation';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
-import { loginAction, getCurrentUser } from '@/app/actions/auth';
+import { getCurrentUser } from '@/app/actions/auth';
 
 export default async function LoginPage() {
   const user = await getCurrentUser();
   
   if (user) {
     redirect('/');
+  }
+
+  async function handleLogin(formData: FormData) {
+    'use server';
+    
+    const email = formData.get('email') as string;
+    const password = formData.get('password') as string;
+
+    const { apiClient } = await import('@/lib/api');
+    const { setSession } = await import('@/lib/session');
+
+    try {
+      const { token } = await apiClient.login(email, password);
+      await setSession(token);
+      redirect('/');
+    } catch (error) {
+      console.error('Login failed:', error);
+      redirect('/login?error=invalid');
+    }
   }
 
   return (
@@ -19,7 +38,7 @@ export default async function LoginPage() {
           <CardDescription>Enter your credentials to continue</CardDescription>
         </CardHeader>
         <CardContent>
-          <form action={loginAction} className="space-y-4">
+          <form action={handleLogin} className="space-y-4">
             <div className="space-y-2">
               <label htmlFor="email" className="text-sm font-medium">
                 Email

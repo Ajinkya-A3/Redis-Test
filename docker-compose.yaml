@@ -1,0 +1,65 @@
+version: '3.8'
+
+services:
+  # Redis Database (4 logical databases)
+  redis:
+    image: redis:7-alpine
+    container_name: redis-shop-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis-data:/data
+      - ./redis-shopping-api/redis.conf:/usr/local/etc/redis/redis.conf
+    command: redis-server /usr/local/etc/redis/redis.conf
+    networks:
+      - redis-shop-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+
+  # FastAPI Backend
+  backend:
+    build:
+      context: ./redis-shopping-api/backend
+      dockerfile: Dockerfile
+    container_name: redis-shop-backend
+    ports:
+      - "8000:8000"
+    environment:
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+    depends_on:
+      redis:
+        condition: service_healthy
+    networks:
+      - redis-shop-network
+    volumes:
+      - ./redis-shopping-api/backend:/app
+    command: uvicorn main:app --host 0.0.0.0 --port 8000 --reload
+
+  # Next.js Frontend
+  frontend:
+    build:
+      context: ./redis-shopping-frontend
+      dockerfile: Dockerfile
+    container_name: redis-shop-frontend
+    ports:
+      - "3000:3000"
+    environment:
+      - API_BASE_URL=https://verbose-space-adventure-x5pwjqrgppg736rj-8000.app.github.dev/
+      - NODE_ENV=production
+    depends_on:
+      - backend
+    networks:
+      - redis-shop-network
+
+networks:
+  redis-shop-network:
+    driver: bridge
+    name: redis-shop-network
+
+volumes:
+  redis-data:
+    name: redis-shop-data
